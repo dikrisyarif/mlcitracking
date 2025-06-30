@@ -19,9 +19,7 @@ export const updateCheckin = async ({
   Longitude,
   CheckIn,
 }) => {
-  // console.log('mas');
   const endpointPath = '/common/v1/mobile/update-check';
-
   const body = {
     EmployeeName,
     LeaseNo,
@@ -31,7 +29,23 @@ export const updateCheckin = async ({
     CheckIn: CheckIn, // sudah string lokal
     CreatedDate: new Date().toISOString(),
   };
-  console.log('body: ', body);
+  const result = await callMitsuiApi({ endpointPath, method: 'PUT', body });
+  return result;
+};
+
+export const updateComment = async ({
+  EmployeeName,
+  LeaseNo,
+  Comment,
+  CreatedDate,
+}) => {
+  const endpointPath = '/common/v1/mobile/update-comment';
+  const body = {
+    EmployeeName,
+    LeaseNo,
+    Comment,
+    CreatedDate: CreatedDate || new Date().toISOString(),
+  };
   const result = await callMitsuiApi({ endpointPath, method: 'PUT', body });
   return result;
 };

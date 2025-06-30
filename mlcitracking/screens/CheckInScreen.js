@@ -7,6 +7,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LOCATION_TASK_NAME = 'background-location-task';
 
 // Task Manager untuk menangani lokasi latar belakang
+// Fungsi hitung jarak haversine (meter)
+function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Radius bumi dalam meter
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('Error in background location task:', error);
@@ -16,22 +29,28 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (data) {
     const { locations } = data;
     const location = locations[0];
-    
-    // Simpan lokasi ke AsyncStorage
     const locationData = {
       timestamp: new Date().toISOString(),
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
     };
-    
-    // Ambil data lokasi yang sudah ada
     const existingLogs = await AsyncStorage.getItem('locationLogs');
     const parsedLogs = JSON.parse(existingLogs || '[]');
-    
-    // Tambahkan lokasi baru ke logs
+    // Cek jarak ke lokasi terakhir
+    if (parsedLogs.length > 0) {
+      const last = parsedLogs[parsedLogs.length - 1];
+      const dist = getDistanceFromLatLonInMeters(
+        last.latitude,
+        last.longitude,
+        locationData.latitude,
+        locationData.longitude
+      );
+      if (dist < 200) {
+        // Tidak usah simpan jika < 200 meter
+        return;
+      }
+    }
     parsedLogs.push(locationData);
-    
-    // Simpan kembali ke AsyncStorage
     await AsyncStorage.setItem('locationLogs', JSON.stringify(parsedLogs));
   }
 });

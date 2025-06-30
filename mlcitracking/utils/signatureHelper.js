@@ -1,14 +1,13 @@
 import CryptoJS from 'crypto-js';
 
 export const generateMitsuiSignature = (method, endpointPath, accessToken, timestamp, body, clientSecret) => {
-  const jsonBody = JSON.stringify(body); // Tetap jaga key order dan tanpa spasi
-  const minifiedBody = jsonBody.replace(/\s+/g, ''); // Hapus semua spasi
-  const hashedBody = CryptoJS.SHA256(minifiedBody).toString(CryptoJS.enc.Hex).toLowerCase();
+  const jsonBody = JSON.stringify(body); // Jaga key order dan spasi di value
+  const hashedBody = CryptoJS.SHA256(jsonBody).toString(CryptoJS.enc.Hex).toLowerCase();
 
   const stringToSign = `${method}:${endpointPath}:${accessToken}:${hashedBody}:${timestamp}`;
 
   console.log('==== DEBUG Signature ====');
-  console.log('Minified Body:', minifiedBody);
+  console.log('JSON Body:', jsonBody);
   console.log('SHA-256 Hex:', hashedBody);
   console.log('StringToSign:', stringToSign);
   console.log('==========================');

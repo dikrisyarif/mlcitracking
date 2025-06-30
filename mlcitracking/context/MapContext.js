@@ -19,7 +19,7 @@ export const MapProvider = ({ children }) => {
       parsed = [];
     }
     setCheckinLocations(parsed);
-    console.log('[MapContext] Loaded check-ins from storage:', parsed);
+    // console.log('[MapContext] Loaded check-ins from storage:', parsed);
   } catch (e) {
     console.error('[MapContext] Error loading CheckinLocations:', e);
     setCheckinLocations([]);
@@ -31,7 +31,7 @@ export const MapProvider = ({ children }) => {
     try {
       await AsyncStorage.removeItem('CheckinLocations');
       setCheckinLocations([]);
-      console.log('[MapContext] Cleared all check-ins');
+      // console.log('[MapContext] Cleared all check-ins');
     } catch (e) {
       console.error('[MapContext] Error clearing checkins:', e);
     }
@@ -54,7 +54,7 @@ export const MapProvider = ({ children }) => {
       const updated = [...checkinLocations, locWithLocalTime];
       setCheckinLocations(updated);
       await AsyncStorage.setItem('CheckinLocations', JSON.stringify(updated));
-      console.log('[MapContext] Added check-in and saved:', locWithLocalTime);
+      // console.log('[MapContext] Added check-in and saved:', locWithLocalTime);
     } catch (e) {
       console.error('[MapContext] Error saving checkin:', e);
     }

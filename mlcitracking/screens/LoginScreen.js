@@ -82,7 +82,7 @@ const LoginScreen = ({ navigation }) => {
         requestBody,
         clientSecret
       );
-      console.log('signature: ', signature)
+      // console.log('signature: ', signature)
       const loginResponse = await fetch(fullUrl, {
         method,
         headers: {
@@ -94,9 +94,9 @@ const LoginScreen = ({ navigation }) => {
         },
         body: JSON.stringify(requestBody),
       });
-      console.log('loginResponse: ', loginResponse)
+      // console.log('loginResponse: ', loginResponse)
       const result = await loginResponse.json();
-      console.log('result: ', result)
+      // console.log('result: ', result)
       if (result.Status === 0) {
         setAlertMessage(result.Message || 'Username atau password salah.');
         setAlertVisible(true);

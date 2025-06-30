@@ -111,7 +111,7 @@ const ListContractScreen = ({ navigation }) => {
           });
 
         await AsyncStorage.setItem('CheckinLocations', JSON.stringify(checkedInLocations));
-        console.log('[Storage] Lokasi check-in tersimpan:', checkedInLocations);
+        // console.log('[Storage] Lokasi check-in tersimpan:', checkedInLocations);
         await loadCheckinsFromStorage(); // ini dari useMap
       } else {
         console.warn('Gagal memuat data kontrak:', response.Message);
@@ -216,6 +216,13 @@ const handleCheckin = async (item, newComment) => {
     setIsLoading(false);
   }
 };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchContracts();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>

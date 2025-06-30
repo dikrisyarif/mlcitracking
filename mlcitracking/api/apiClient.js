@@ -14,7 +14,7 @@ function isTokenExpired(tokenData) {
   return Date.now() > expiry.getTime() - 60 * 1000; // refresh 1 menit sebelum expired
 }
 
-export const callMitsuiApi = async ({ endpointPath, method, body = {} }) => {
+export const callMitsuiApi = async ({ endpointPath, method, body = {}, _retryData = null }) => {
   if (!cachedTokenData || isTokenExpired(cachedTokenData)) {
     cachedTokenData = await getAccessTokenFromMitsui();
   }
@@ -22,10 +22,11 @@ export const callMitsuiApi = async ({ endpointPath, method, body = {} }) => {
   const token = cachedTokenData.AccessToken;
   const clientSecret = MITSUI_CLIENT_SECRET;
 
-  const timestamp = new Date().toISOString(); // UTC untuk signature
+  // Gunakan data retry jika ada, agar signature dan timestamp stabil
+  const timestamp = _retryData?.timestamp || new Date().toISOString();
   const cleanedBody = removeUndefined(body);
 
-  const signature = generateMitsuiSignature(
+  const signature = _retryData?.signature || generateMitsuiSignature(
     method,
     endpointPath,
     token.replace('Bearer ', ''),
@@ -42,6 +43,25 @@ export const callMitsuiApi = async ({ endpointPath, method, body = {} }) => {
   console.log('Body:', cleanedBody);
   console.log('======================');
 
+  console.log('==== API REQUEST FULL DETAIL ====');
+  console.log('Endpoint:', endpointPath);
+  console.log('Method:', method);
+  console.log('Headers:', {
+    Authorization: token,
+    'X-PARTNER-ID': cachedTokenData.ClientId,
+    'X-TIMESTAMP': timestamp,
+    'X-SIGNATURE': signature,
+    'Content-Type': 'application/json',
+  });
+  console.log('Body:', JSON.stringify(cleanedBody));
+  console.log('==============================');
+
+  const minifiedBodyForSignature = JSON.stringify(cleanedBody);
+  console.log('==== DEBUG BODY SIGNATURE VS REQUEST ====');
+  console.log('Minified body for signature:', minifiedBodyForSignature);
+  console.log('Body sent to backend:', JSON.stringify(cleanedBody));
+  console.log('========================================');
+
   const response = await fetch(`${BASE_URL}${endpointPath}`, {
     method,
     headers: {
@@ -54,11 +74,11 @@ export const callMitsuiApi = async ({ endpointPath, method, body = {} }) => {
     body: JSON.stringify(cleanedBody),
   });
 
-  if (response.status === 401) {
+  if (response.status === 401 && !_retryData) {
     console.warn('[Mitsui] Unauthorized. Retrying once with refreshed token...');
     cachedTokenData = await getAccessTokenFromMitsui();
-    // Retry tanpa _retry di body agar signature tetap valid
-    return callMitsuiApi({ endpointPath, method, body });
+    // Retry dengan _retryData agar signature dan timestamp tetap sama
+    return callMitsuiApi({ endpointPath, method, body, _retryData: { timestamp, signature } });
   }
 
   const json = await response.json();

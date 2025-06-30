@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,Platfor
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import CommentModal from '../components/CommentModal';
+import { updateCheckin, updateComment } from '../api/listApi';
+import { useAuth } from '../context/AuthContext';
 
 const DetailScreen = ({ route, navigation }) => {
   const {
@@ -22,14 +24,42 @@ const DetailScreen = ({ route, navigation }) => {
     Comment
   } = route.params;
 
+  const { state } = useAuth();
+  const profile = state?.userInfo || {};
+  const isCheckedIn = !!route.params?.isCheckedIn || !!route.params?.CheckIn;
+  const checkInTime = route.params?.CheckIn;
+  const latitude = route.params?.Latitude || route.params?.latitude;
+  const longitude = route.params?.Longitude || route.params?.longitude;
+
   const [commentModalVisible, setCommentModalVisible] = useState(false);
   const [comment, setComment] = useState(Comment || '');
-  console.log('q: ', route.params);
-  console.log('e: ', Comment);
-  
-  const handleCommentSubmit = (newComment) => {
+  const [loading, setLoading] = useState(false);
+
+  // Helper untuk dapatkan tanggal ISO string
+  function getIsoDateString() {
+    return new Date().toISOString();
+  }
+
+  const handleCommentSubmit = async (newComment) => {
     setComment(newComment);
     setCommentModalVisible(false);
+    if (isCheckedIn) {
+      setLoading(true);
+      try {
+        await updateComment({
+          EmployeeName: profile.UserName,
+          LeaseNo,
+          Comment: newComment,
+          CreatedDate: getIsoDateString(),
+        });
+        // Optional: tampilkan notifikasi sukses
+      } catch (e) {
+        // Optional: tampilkan notifikasi error
+        alert('Gagal update komentar ke server.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const renderRow = (label, value) => (
@@ -74,21 +104,19 @@ const DetailScreen = ({ route, navigation }) => {
             {/* Komentar yang ditampilkan */}
             <View style={styles.commentDisplay}>
               <Text style={styles.commentText}>{comment || '-'}</Text>
-
-              {/* Tombol edit komentar */}
-              <TouchableOpacity onPress={() => setCommentModalVisible(true)}>
-                <Icon name="edit" size={20} color="#007bff" />
-              </TouchableOpacity>
+              {/* Tombol edit komentar hanya jika sudah check-in */}
+              {isCheckedIn && (
+                <TouchableOpacity onPress={() => setCommentModalVisible(true)} disabled={loading}>
+                  <Icon name="edit" size={20} color="#007bff" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View> 
         <CommentModal
           visible={commentModalVisible}
           onClose={() => setCommentModalVisible(false)}
-          onSubmit={(newComment) => {
-            setComment(newComment);
-            setCommentModalVisible(false);
-          }}
+          onSubmit={handleCommentSubmit}
         />
 
       </ScrollView>

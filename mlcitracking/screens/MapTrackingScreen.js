@@ -75,8 +75,10 @@ const MapTrackingScreen = () => {
   const loadTrackingData = useCallback(async () => {
     try {
       const raw = JSON.parse(await AsyncStorage.getItem('locationLogs') || '[]');
-      setTrackingRoute(raw);
-      filterByDate(raw, selectedDate);
+      // Filter hanya titik > 200 meter
+      const filtered = filterByDistance(raw, 200);
+      setTrackingRoute(filtered);
+      filterByDate(filtered, selectedDate);
     } catch (e) {
       console.log('Error loading locationLogs:', e);
     }
@@ -337,5 +339,31 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
 });
+
+// Fungsi hitung jarak haversine (meter)
+function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Filter array: hanya titik > 200 meter dari sebelumnya
+function filterByDistance(data, minDistance = 200) {
+  if (!data.length) return [];
+  const result = [data[0]];
+  for (let i = 1; i < data.length; i++) {
+    const prev = result[result.length - 1];
+    const curr = data[i];
+    const dist = getDistanceFromLatLonInMeters(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+    if (dist > minDistance) result.push(curr);
+  }
+  return result;
+}
 
 export default MapTrackingScreen;
