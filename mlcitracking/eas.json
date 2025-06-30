@@ -9,9 +9,15 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"  // hasilnya .apk → bisa diinstall langsung
+      }
     },
     "production": {
+      "android": {
+        "buildType": "aab"  // hasilnya .aab → upload ke Play Store
+      },
       "autoIncrement": true
     }
   },
