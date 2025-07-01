@@ -35,9 +35,16 @@ const StartEndButton = ({ isStarted, onPress }) => {
 
   // Mulai tracking lokasi di background
   const startBackgroundTracking = async () => {
+    // Pastikan sudah granted foreground
+    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      Alert.alert('Izin lokasi diperlukan untuk tracking.');
+      return;
+    }
+    // Baru request background
     const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
     if (bgStatus !== 'granted') {
-      Alert.alert('Izin lokasi latar belakang diperlukan.');
+      Alert.alert('Izin lokasi latar belakang diperlukan. Aktifkan manual di pengaturan jika tidak muncul.');
       return;
     }
     await Location.startLocationUpdatesAsync('background-location-task', {

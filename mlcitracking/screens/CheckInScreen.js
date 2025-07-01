@@ -114,12 +114,18 @@ const CheckInScreen = ({ navigation }) => {
 
   // Mulai tracking lokasi di background
   const startBackgroundTracking = async () => {
-    const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-    if (bgStatus !== 'granted') {
-      Alert.alert('Izin lokasi latar belakang diperlukan.');
+    // Pastikan sudah granted foreground
+    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      Alert.alert('Izin lokasi diperlukan untuk tracking.');
       return;
     }
-
+    // Baru request background
+    const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+    if (bgStatus !== 'granted') {
+      Alert.alert('Izin lokasi latar belakang diperlukan. Aktifkan manual di pengaturan jika tidak muncul.');
+      return;
+    }
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
       accuracy: Location.Accuracy.High,
       timeInterval: 2 * 60 * 1000, // 2 menit
@@ -127,10 +133,9 @@ const CheckInScreen = ({ navigation }) => {
       showsBackgroundLocationIndicator: true,
       foregroundService: {
         notificationTitle: 'Tracking lokasi aktif',
-        notificationBody: 'Aplikasi sedang melacak lokasimu.',
+        notificationBody: 'Aplikasi sedang melacak lokasimu.'
       },
     });
-
     setIsTracking(true);
   };
 
