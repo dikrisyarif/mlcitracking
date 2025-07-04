@@ -56,8 +56,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 });
 
 const CheckInScreen = ({ navigation }) => {
-  const [isTracking, setIsTracking] = useState(false);
-
+  // Hapus isTracking dari state dan seluruh pemanggilan setIsTracking
   useEffect(() => {
     checkTrackingStatus();
   }, []);
@@ -65,7 +64,7 @@ const CheckInScreen = ({ navigation }) => {
   // Mengecek apakah background task sudah aktif
   const checkTrackingStatus = async () => {
     const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-    setIsTracking(hasStarted);
+    // Hapus pemanggilan setIsTracking(hasStarted);
   };
 
   // Helper untuk waktu lokal (WIB)
@@ -95,64 +94,38 @@ const CheckInScreen = ({ navigation }) => {
         return;
       }
       const checkInData = {
+        type: 'start',
+        tipechekin: 'start',
         timestamp: getLocalISOString(),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       };
       try {
-        await AsyncStorage.setItem('CheckinLocations', JSON.stringify(checkInData));
+        // Ambil data array lama
+        const existing = await AsyncStorage.getItem('CheckinLocations');
+        let arr = [];
+        if (existing) {
+          try { arr = JSON.parse(existing); } catch {}
+          if (!Array.isArray(arr)) arr = [];
+        }
+        arr.push(checkInData);
+        await AsyncStorage.setItem('CheckinLocations', JSON.stringify(arr));
       } catch (e) {
         Alert.alert('Gagal menyimpan data check-in.');
         return;
       }
-      await startBackgroundTracking();
+      // Tidak lagi trigger startBackgroundTracking atau set isTracking di sini
       navigation.navigate('MapTrackingScreen');
     } catch (err) {
       Alert.alert('Terjadi error saat check-in.', err?.message || '');
     }
   };
 
-  // Mulai tracking lokasi di background
-  const startBackgroundTracking = async () => {
-    // Pastikan sudah granted foreground
-    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-    if (fgStatus !== 'granted') {
-      Alert.alert('Izin lokasi diperlukan untuk tracking.');
-      return;
-    }
-    // Baru request background
-    const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-    if (bgStatus !== 'granted') {
-      Alert.alert('Izin lokasi latar belakang diperlukan. Aktifkan manual di pengaturan jika tidak muncul.');
-      return;
-    }
-    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.High,
-      timeInterval: 2 * 60 * 1000, // 2 menit
-      distanceInterval: 10, // 10 meter
-      showsBackgroundLocationIndicator: true,
-      foregroundService: {
-        notificationTitle: 'Tracking lokasi aktif',
-        notificationBody: 'Aplikasi sedang melacak lokasimu.'
-      },
-    });
-    setIsTracking(true);
-  };
-
-  // Berhenti tracking
-  const stopBackgroundTracking = async () => {
-    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-    setIsTracking(false);
-    Alert.alert('Tracking dihentikan');
-  };
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Check-In & Background Tracking</Text>
       <Button title="Check-In dan Mulai Tracking" onPress={handleCheckIn} />
-      {isTracking && (
-        <Button title="Hentikan Tracking" onPress={stopBackgroundTracking} color="red" />
-      )}
+      {/* Hapus tombol hentikan tracking */}
     </View>
   );
 };

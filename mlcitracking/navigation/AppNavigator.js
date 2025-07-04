@@ -25,13 +25,16 @@ const TabNavigator = () => {
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
           let iconName;
+          const routeName = route?.name || '';
 
-          if (route.name === 'Home') {
+          if (routeName === 'Home') {
             iconName = 'home';
-          } else if (route.name === 'History') {
+          } else if (routeName === 'History') {
             iconName = 'history';
-          } else if (route.name === 'Profile') {
+          } else if (routeName === 'Profile') {
             iconName = 'user';
+          } else {
+            iconName = 'question'; // fallback icon
           }
 
           return <Icon name={iconName} size={size} color={color} />;

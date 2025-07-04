@@ -35,32 +35,32 @@ export const callMitsuiApi = async ({ endpointPath, method, body = {}, _retryDat
     clientSecret
   );
 
-  console.log('==== API REQUEST ====');
-  console.log('Endpoint:', endpointPath);
-  console.log('Method:', method);
-  console.log('Token (short):', token.slice(0, 30) + '...');
-  console.log('X-TIMESTAMP:', timestamp);
-  console.log('Body:', cleanedBody);
-  console.log('======================');
+  // console.log('==== API REQUEST ====');
+  // console.log('Endpoint:', endpointPath);
+  // console.log('Method:', method);
+  // console.log('Token (short):', token.slice(0, 30) + '...');
+  // console.log('X-TIMESTAMP:', timestamp);
+  // console.log('Body:', cleanedBody);
+  // console.log('======================');
 
-  console.log('==== API REQUEST FULL DETAIL ====');
-  console.log('Endpoint:', endpointPath);
-  console.log('Method:', method);
-  console.log('Headers:', {
-    Authorization: token,
-    'X-PARTNER-ID': cachedTokenData.ClientId,
-    'X-TIMESTAMP': timestamp,
-    'X-SIGNATURE': signature,
-    'Content-Type': 'application/json',
-  });
-  console.log('Body:', JSON.stringify(cleanedBody));
-  console.log('==============================');
+  // console.log('==== API REQUEST FULL DETAIL ====');
+  // console.log('Endpoint:', endpointPath);
+  // console.log('Method:', method);
+  // console.log('Headers:', {
+  //   Authorization: token,
+  //   'X-PARTNER-ID': cachedTokenData.ClientId,
+  //   'X-TIMESTAMP': timestamp,
+  //   'X-SIGNATURE': signature,
+  //   'Content-Type': 'application/json',
+  // });
+  // console.log('Body:', JSON.stringify(cleanedBody));
+  // console.log('==============================');
 
   const minifiedBodyForSignature = JSON.stringify(cleanedBody);
-  console.log('==== DEBUG BODY SIGNATURE VS REQUEST ====');
-  console.log('Minified body for signature:', minifiedBodyForSignature);
-  console.log('Body sent to backend:', JSON.stringify(cleanedBody));
-  console.log('========================================');
+  // console.log('==== DEBUG BODY SIGNATURE VS REQUEST ====');
+  // console.log('Minified body for signature:', minifiedBodyForSignature);
+  // console.log('Body sent to backend:', JSON.stringify(cleanedBody));
+  // console.log('========================================');
 
   const response = await fetch(`${BASE_URL}${endpointPath}`, {
     method,
@@ -89,4 +89,8 @@ const removeUndefined = (obj) => {
   return Object.fromEntries(
     Object.entries(obj).filter(([_, v]) => v !== undefined && v !== null)
   );
+};
+
+export const post = (endpointPath, body) => {
+  return callMitsuiApi({ endpointPath, method: 'POST', body });
 };

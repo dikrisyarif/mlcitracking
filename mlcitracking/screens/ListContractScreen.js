@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, BackHandler, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, BackHandler, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { widthPercentageToDP as wp, heightPercentageToDP as hp } from 'react-native-responsive-screen';
 import StartEndButton from '../components/StartEndButton';
@@ -10,9 +10,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons'; 
-import { fetchListDtl, updateCheckin } from '../api/listApi';
+import { fetchListDtl, updateCheckin, saveCheckinToServer } from '../api/listApi';
 import { useMap } from '../context/MapContext';
 import * as Location from 'expo-location'; 
+import GlobalLoading from '../components/GlobalLoading';
 
 // Helper untuk waktu lokal (WIB)
 function getLocalISOString(offsetHours = 7) {
@@ -25,7 +26,7 @@ const ListContractScreen = ({ navigation }) => {
   const { colors, theme, setTheme } = useTheme();
   const { signOut, state, logout } = useAuth();
   const profile = state.userInfo || {};
-  const { addCheckin, loadCheckinsFromStorage } = useMap();
+  const { addCheckin, addCheckinLocal, loadCheckinsFromStorage, checkinLocations } = useMap();
 
   const [selectedId, setSelectedId] = useState(null);
   const [comments, setComments] = useState({});
@@ -104,13 +105,24 @@ const ListContractScreen = ({ navigation }) => {
               latitude: item.Latitude,
               longitude: item.Longitude,
               timestamp: item.CheckIn,
+              tipechekin: 'kontrak', // Pastikan tipechekin kontrak
             };
-            // ⬅️ Tambahkan ke MapContext
-            addCheckin(loc);
+            // ⬅️ Tambahkan ke MapContext jika belum ada
+            const isExist = checkinLocations.some(
+              l => l.contractId === loc.contractId &&
+                   l.tipechekin === loc.tipechekin &&
+                   l.timestamp === loc.timestamp
+            );
+            if (!isExist) {
+              // Hanya update lokal, jangan trigger API
+              if (typeof addCheckinLocal === 'function') {
+                addCheckinLocal(loc);
+              }
+            }
             return loc;
           });
 
-        await AsyncStorage.setItem('CheckinLocations', JSON.stringify(checkedInLocations));
+        // await AsyncStorage.setItem('CheckinLocations', JSON.stringify(checkedInLocations));
         // console.log('[Storage] Lokasi check-in tersimpan:', checkedInLocations);
         await loadCheckinsFromStorage(); // ini dari useMap
       } else {
@@ -155,8 +167,10 @@ const ListContractScreen = ({ navigation }) => {
     setVisibleCount(prev => prev + 4);
   };
 
-  const toggleStartStop = () => {
-    setIsStarted(prev => !prev);
+  const toggleStartStop = async () => {
+    const newStatus = !isStarted;
+    setIsStarted(newStatus);
+    await AsyncStorage.setItem('isTracking', newStatus ? 'true' : 'false');
   };
 
   const handleLogout = async () => {
@@ -185,10 +199,38 @@ const handleCheckin = async (item, newComment) => {
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
       timestamp: timestamp,
+      tipechekin: 'kontrak',
     };
 
-    addCheckin(checkinLocation);
+    // 1. Dapatkan address hasil reverse geocode (jalan, kota)
+    let address = '';
+    try {
+      let geocode = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      if (geocode && geocode[0]) {
+        const street = geocode[0].street || '';
+        const city = geocode[0].subregion || '';
+        address = [street, city].filter(Boolean).join(', ');
+      }
+    } catch {}
 
+    // 1. Simpan ke server (saveCheckinToServer)
+    const saveResult = await saveCheckinToServer({
+      EmployeeName: profile.UserName,
+      Lattitude: location.coords.latitude,
+      Longtitude: location.coords.longitude,
+      CreatedDate: timestamp,
+      Address: address, // gunakan hasil reverse geocode
+      tipechekin: 'kontrak',
+    });
+    if (!saveResult || saveResult.Status !== 1) {
+      Alert.alert('Check-in gagal', saveResult?.Message || 'Gagal simpan data ke server.');
+      setIsLoading(false);
+      return;
+    }
+    // 2. Update ke server (updateCheckin)
     const response = await updateCheckin({
       EmployeeName: profile.UserName,
       LeaseNo: item.LeaseNo,
@@ -197,8 +239,8 @@ const handleCheckin = async (item, newComment) => {
       Longitude: location.coords.longitude,
       CheckIn: timestamp,
     });
-
     if (response.Status === 1) {
+      addCheckin(checkinLocation); // hanya update lokal jika kedua API sukses
       fetchContracts();
       Alert.alert('Check-in berhasil', `Lokasi disimpan untuk ${item.CustName}.`);
     } else {
@@ -224,11 +266,38 @@ const handleCheckin = async (item, newComment) => {
     return unsubscribe;
   }, [navigation]);
 
+  useEffect(() => {
+    // Sinkronisasi status tracking dari AsyncStorage setiap kali screen difokuskan
+    const checkTrackingStatus = async () => {
+      await loadCheckinsFromStorage(); // update context MapContext
+      const storageData = await AsyncStorage.getItem('CheckinLocations');
+      let parsed = [];
+      try {
+        parsed = JSON.parse(storageData) || [];
+        // console.log('Reload checkinLocations from storage', JSON.stringify(parsed, null, 2));
+      } catch {
+        // console.log('Reload checkinLocations from storage', storageData);
+      }
+      // Cek status tracking dari checkinLocations
+      const reversed = [...parsed].reverse();
+      const lastStartIdx = reversed.findIndex(c => c.tipechekin === 'start');
+      if (lastStartIdx === -1) {
+        setIsStarted(false);
+        return;
+      }
+      const stopAfterStart = reversed.slice(0, lastStartIdx).findIndex(c => c.tipechekin === 'stop');
+      setIsStarted(stopAfterStart === -1);
+    };
+    const unsubscribe = navigation.addListener('focus', checkTrackingStatus);
+    return unsubscribe;
+  }, [navigation]);
+
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <GlobalLoading visible={isLoading} />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.buttonContainer}>
-          <StartEndButton isStarted={isStarted} onPress={toggleStartStop} />
+          <StartEndButton isStarted={isStarted} onPress={toggleStartStop} checkinLocations={checkinLocations} />
           
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
@@ -260,10 +329,6 @@ const handleCheckin = async (item, newComment) => {
             <Text style={styles.syncButtonText}>Sync All</Text>
           </TouchableOpacity>
         </View> 
-
-        {isLoading && (
-          <ActivityIndicator size="large" style={{ marginTop: 10 }} color={colors.primary} />
-        )}
 
         <ScrollView contentContainerStyle={styles.cardListContainer}>
           <CardList

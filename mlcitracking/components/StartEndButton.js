@@ -4,26 +4,28 @@ import { useTheme } from '../context/ThemeContext';
 import { useMap } from '../context/MapContext';
 import * as Location from 'expo-location';
 import CustomAlert from './CustomAlert';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const StartEndButton = ({ isStarted, onPress }) => {
+const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocations }) => {
   const { colors } = useTheme();
-  const { addCheckin, checkinLocations } = useMap();
+  const { addCheckin, checkinLocations: contextCheckinLocations } = useMap();
+  const checkinLocations = propCheckinLocations || contextCheckinLocations;
   const [started, setStarted] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Cek status started dari checkinLocations saat mount/berubah
   useEffect(() => {
-    // Cari index start terakhir
-    const lastStartIdx = [...checkinLocations].reverse().findIndex(c => c.type === 'start');
+    // Cari entry terakhir dengan tipechekin 'start'
+    const reversed = [...(checkinLocations || [])].reverse();
+    const lastStartIdx = reversed.findIndex(c => c.tipechekin === 'start');
     if (lastStartIdx === -1) {
       setStarted(false);
       return;
     }
-    // Cari index stop setelah start terakhir
-    const lastStopIdx = [...checkinLocations].reverse().findIndex(c => c.type === 'stop');
-    // Jika tidak ada stop setelah start, berarti masih started
-    setStarted(lastStopIdx === -1 || lastStopIdx > lastStartIdx);
+    // Cari apakah ada 'stop' setelah 'start' terakhir
+    const stopAfterStart = reversed.slice(0, lastStartIdx).findIndex(c => c.tipechekin === 'stop');
+    setStarted(stopAfterStart === -1);
   }, [checkinLocations]);
 
   // Helper waktu lokal
@@ -82,12 +84,14 @@ const StartEndButton = ({ isStarted, onPress }) => {
       }
       const checkInData = {
         type: 'start',
+        tipechekin: 'start',
         timestamp: getLocalISOString(),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       };
       await addCheckin(checkInData);
       await startBackgroundTracking();
+      await AsyncStorage.setItem('isTracking', 'true');
       setStarted(true);
       if (onPress) onPress(true);
     } catch (err) {
@@ -120,12 +124,14 @@ const StartEndButton = ({ isStarted, onPress }) => {
       }
       const checkOutData = {
         type: 'stop',
+        tipechekin: 'stop',
         timestamp: getLocalISOString(),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       };
       await addCheckin(checkOutData);
       await stopBackgroundTracking();
+      await AsyncStorage.setItem('isTracking', 'false');
       setStarted(false);
       if (onPress) onPress(false);
     } catch (err) {
