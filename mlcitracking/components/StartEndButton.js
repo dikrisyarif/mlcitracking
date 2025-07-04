@@ -23,9 +23,9 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
       setStarted(false);
       return;
     }
-    // Cari apakah ada 'stop' setelah 'start' terakhir
+    // Cari apakah ADA 'stop' SETELAH 'start' terakhir
     const stopAfterStart = reversed.slice(0, lastStartIdx).findIndex(c => c.tipechekin === 'stop');
-    setStarted(stopAfterStart === -1);
+    setStarted(stopAfterStart === -1 && lastStartIdx !== -1);
   }, [checkinLocations]);
 
   // Helper waktu lokal

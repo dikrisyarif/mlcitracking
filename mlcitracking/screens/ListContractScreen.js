@@ -285,8 +285,9 @@ const handleCheckin = async (item, newComment) => {
         setIsStarted(false);
         return;
       }
+      // Cari apakah ADA 'stop' SETELAH 'start' terakhir
       const stopAfterStart = reversed.slice(0, lastStartIdx).findIndex(c => c.tipechekin === 'stop');
-      setIsStarted(stopAfterStart === -1);
+      setIsStarted(stopAfterStart === -1 && lastStartIdx !== -1);
     };
     const unsubscribe = navigation.addListener('focus', checkTrackingStatus);
     return unsubscribe;
