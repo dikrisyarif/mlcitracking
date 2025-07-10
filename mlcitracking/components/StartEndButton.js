@@ -5,28 +5,62 @@ import { useMap } from '../context/MapContext';
 import * as Location from 'expo-location';
 import CustomAlert from './CustomAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isStartedApi } from '../api/listApi';
+import { useAuth } from '../context/AuthContext';
 
 const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocations }) => {
   const { colors } = useTheme();
   const { addCheckin, checkinLocations: contextCheckinLocations } = useMap();
   const checkinLocations = propCheckinLocations || contextCheckinLocations;
+  const { state: authState } = useAuth();
   const [started, setStarted] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Cek status started dari checkinLocations saat mount/berubah
+  // Cek status started dari backend saat mount/berubah
   useEffect(() => {
-    // Cari entry terakhir dengan tipechekin 'start'
-    const reversed = [...(checkinLocations || [])].reverse();
-    const lastStartIdx = reversed.findIndex(c => c.tipechekin === 'start');
-    if (lastStartIdx === -1) {
-      setStarted(false);
-      return;
-    }
-    // Cari apakah ADA 'stop' SETELAH 'start' terakhir
-    const stopAfterStart = reversed.slice(0, lastStartIdx).findIndex(c => c.tipechekin === 'stop');
-    setStarted(stopAfterStart === -1 && lastStartIdx !== -1);
-  }, [checkinLocations]);
+    const fetchStartedStatus = async () => {
+      try {
+        let employeeName = authState?.userInfo?.UserName || authState?.userInfo?.username;
+        if (!employeeName) {
+          // fallback ke SecureStore jika context belum siap
+          const userInfoStr = await AsyncStorage.getItem('userInfo');
+          if (userInfoStr) {
+            const userInfo = JSON.parse(userInfoStr);
+            employeeName = userInfo.UserName || userInfo.username;
+          }
+        }
+        if (!employeeName) return;
+        const now = new Date();
+        const createdDate = now.toISOString();
+        const res = await isStartedApi({ EmployeeName: employeeName, CreatedDate: createdDate });
+        // Tambahkan log debug
+        console.log('[StartEndButton] isStartedApi result:', res);
+        if (res?.Data?.NextAction === 'Start') {
+          setStarted(false); // NextAction Start -> tombol Start (belum mulai)
+        } else if (res?.Data?.NextAction === 'Stop') {
+          setStarted(true); // NextAction Stop -> tombol Stop (sudah mulai)
+        }
+      } catch (e) {
+        // fallback ke local jika error
+        console.log('[StartEndButton] isStartedApi error:', e);
+      }
+    };
+    fetchStartedStatus();
+  }, [authState?.userInfo, checkinLocations]);
+
+  // Tambahkan efek untuk sinkronisasi status tracking dari AsyncStorage saat mount
+  useEffect(() => {
+    const checkTrackingStatus = async () => {
+      try {
+        const tracking = await AsyncStorage.getItem('isTracking');
+        setStarted(tracking === 'true');
+      } catch {
+        setStarted(false);
+      }
+    };
+    checkTrackingStatus();
+  }, []);
 
   // Helper waktu lokal
   function getLocalISOString(offsetHours = 7) {
@@ -59,6 +93,7 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
         notificationBody: 'Aplikasi sedang melacak lokasimu.'
       },
     });
+    Alert.alert('Tracking aktif', 'Aplikasi sedang melacak lokasimu di background.');
   };
 
   // Berhenti tracking
@@ -91,7 +126,7 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
       };
       await addCheckin(checkInData);
       await startBackgroundTracking();
-      await AsyncStorage.setItem('isTracking', 'true');
+      await AsyncStorage.setItem('isTracking', 'true'); // pastikan update status
       setStarted(true);
       if (onPress) onPress(true);
     } catch (err) {
@@ -131,7 +166,7 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
       };
       await addCheckin(checkOutData);
       await stopBackgroundTracking();
-      await AsyncStorage.setItem('isTracking', 'false');
+      await AsyncStorage.setItem('isTracking', 'false'); // pastikan update status
       setStarted(false);
       if (onPress) onPress(false);
     } catch (err) {

@@ -129,3 +129,14 @@ export const fetchGetRecord = async ({ EmployeeName, CreatedDate } = {}) => {
   }
 };
 
+// Mengecek status start/stop dari server
+export const isStartedApi = async ({ EmployeeName, CreatedDate }) => {
+  const endpointPath = '/common/v1/mobile/isStarted';
+  const body = {
+    EmployeeName,
+    CreatedDate: CreatedDate || new Date().toISOString(),
+  };
+  const result = await callMitsuiApi({ endpointPath, method: 'POST', body });
+  return result;
+};
+

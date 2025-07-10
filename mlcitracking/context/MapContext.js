@@ -106,6 +106,10 @@ export const MapProvider = ({ children }) => {
         });
         console.log(`[MapContext] Hasil panggil API saveCheckinToServer tipe: ${locWithLocalTime.tipechekin}`, apiResult);
       }
+      // Simpan timestamp check-in terakhir jika tipechekin 'start'
+      if (locWithLocalTime.tipechekin === 'start') {
+        await AsyncStorage.setItem('lastCheckinStart', String(new Date(locWithLocalTime.timestamp).getTime()));
+      }
     } catch (e) {
       console.error('[MapContext] Error saving checkin:', e);
     }

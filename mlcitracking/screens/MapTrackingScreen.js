@@ -149,6 +149,7 @@ const MapTrackingScreen = () => {
       try {
         // Ambil EmployeeName dari context
         const data = await fetchGetRecord({ EmployeeName: profile.UserName });
+        console.log('[MAPVIEW] Data marker dari server:', JSON.stringify(data, null, 2));
         setMarkers(data);
       } catch (e) {
         setMarkers([]);
