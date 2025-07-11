@@ -17,6 +17,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     return;
   }
   if (data) {
+    console.log('[BG Tracking] Task dieksekusi:', new Date().toISOString());
     const { locations } = data;
     try {
       // Cek apakah sudah ada 'stop' setelah 'start' terakhir
@@ -47,14 +48,31 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
       const oldData = await AsyncStorage.getItem('locationLogs');
       const parsed = JSON.parse(oldData || '[]');
+      // Gunakan timestamp unik (milidetik) agar tidak duplikat
+      const now = new Date();
+      const uniqueTimestamp = `${getLocalWIBString(now)}.${now.getMilliseconds()}`;
       const newLocation = {
-        timestamp: getLocalWIBString(new Date()), // gunakan waktu lokal device saat task dieksekusi
+        timestamp: uniqueTimestamp, // timestamp unik
         latitude: locations[0].coords.latitude,
         longitude: locations[0].coords.longitude,
       };
-      // Simpan semua lokasi ke locationLogs
-      const updated = [...parsed, newLocation];
-      await AsyncStorage.setItem('locationLogs', JSON.stringify(updated));
+      // Simpan hanya 1 lokasi terakhir ke locationLogs (tidak menumpuk)
+      await AsyncStorage.setItem('locationLogs', JSON.stringify([newLocation]));
+
+      // Cek duplikasi: jika timestamp sama dengan record terakhir, skip insert ke server
+      if (parsed.length > 0) {
+        const lastLog = parsed[parsed.length - 1];
+        if (lastLog.timestamp === newLocation.timestamp) {
+          console.log('[BG Tracking] Skip tracking insert karena duplikasi timestamp di locationLogs');
+          return;
+        }
+      }
+      // Cek duplikasi: jika timestamp sama dengan lastTrackingSentTimestamp di AsyncStorage, skip insert ke server
+      const lastTrackingSentTimestamp = await AsyncStorage.getItem('lastTrackingSentTimestamp');
+      if (lastTrackingSentTimestamp && lastTrackingSentTimestamp === newLocation.timestamp) {
+        console.log('[BG Tracking] Skip tracking insert karena duplikasi timestamp di lastTrackingSentTimestamp');
+        return;
+      }
 
       // Kirim ke server (tracking) jika sudah >= 2 menit dari pengiriman terakhir
       const lastSentStr = await AsyncStorage.getItem('lastTrackingSent');
@@ -63,15 +81,25 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         try { lastSent = parseInt(lastSentStr, 10); } catch {}
       }
       const currTime = Date.now();
-      if (currTime - lastSent < 5 * 60 * 1000) {
+      if (currTime - lastSent < 2 * 60 * 1000) {
+        console.log('[BG Tracking] Skip tracking insert karena limiter 2 menit');
         return;
       }
+      // Untuk testing, tracking akan dipanggil setiap 30 detik tanpa limiter
+      // const currTime = Date.now();
       // Kirim ke server (tracking) jika ada user login
       const userInfoStr = await SecureStore.getItemAsync('userInfo');
       if (userInfoStr) {
         const userInfo = JSON.parse(userInfoStr);
         if (userInfo && userInfo.UserName) {
           try {
+            console.log('[BG Tracking] Akan kirim tracking ke server:', {
+              EmployeeName: userInfo.UserName,
+              Lattitude: newLocation.latitude,
+              Longtitude: newLocation.longitude,
+              CreatedDate: newLocation.timestamp,
+              tipechekin: 'tracking',
+            });
             const result = await saveCheckinToServer({
               EmployeeName: userInfo.UserName,
               Lattitude: newLocation.latitude,
@@ -80,7 +108,12 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
               tipechekin: 'tracking',
             });
             await AsyncStorage.setItem('lastTrackingSent', String(currTime));
-            console.log('[BG Tracking] saveCheckinToServer result:', result);
+            await AsyncStorage.setItem('lastTrackingSentTimestamp', newLocation.timestamp);
+            console.log('[BG Tracking] Tracking berhasil dikirim:', {
+              result,
+              lokasi: newLocation,
+              waktu: new Date().toISOString(),
+            });
           } catch (e) {
             console.error('[BG Tracking] Failed to send tracking to server', e);
           }
@@ -96,8 +129,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       if (lastCheckinStartStr) {
         const lastCheckinStart = parseInt(lastCheckinStartStr, 10);
         const currTime = Date.now();
-        if (Math.abs(currTime - lastCheckinStart) < 5 * 60 * 1000) {
-          // Jika tracking < 1 menit dari check-in, skip insert ke server
+        // Jika tracking < 10 detik dari check-in start, skip insert ke server
+        if (Math.abs(currTime - lastCheckinStart) < 10 * 1000) {
+          console.log('[BG Tracking] Skip tracking insert karena baru saja start');
           return;
         }
       }
