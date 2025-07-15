@@ -7,6 +7,7 @@ import CustomAlert from './CustomAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isStartedApi } from '../api/listApi';
 import { useAuth } from '../context/AuthContext';
+import { startBackgroundTracking, stopBackgroundTracking } from '../backgroundTrackingManager';
 
 const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocations }) => {
   const { colors } = useTheme();
@@ -49,18 +50,18 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
     fetchStartedStatus();
   }, [authState?.userInfo, checkinLocations]);
 
-  // Tambahkan efek untuk sinkronisasi status tracking dari AsyncStorage saat mount
-  useEffect(() => {
-    const checkTrackingStatus = async () => {
-      try {
-        const tracking = await AsyncStorage.getItem('isTracking');
-        setStarted(tracking === 'true');
-      } catch {
-        setStarted(false);
-      }
-    };
-    checkTrackingStatus();
-  }, []);
+  // useEffect berikut DINONAKTIFKAN agar status tombol hanya dari API
+  // useEffect(() => {
+  //   const checkTrackingStatus = async () => {
+  //     try {
+  //       const tracking = await AsyncStorage.getItem('isTracking');
+  //       setStarted(tracking === 'true');
+  //     } catch {
+  //       setStarted(false);
+  //     }
+  //   };
+  //   checkTrackingStatus();
+  // }, []);
 
   // Helper waktu lokal
   function getLocalISOString(offsetHours = 7) {
@@ -68,38 +69,6 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
     now.setHours(now.getHours() + offsetHours);
     return now.toISOString().slice(0, 19);
   }
-
-  // Mulai tracking lokasi di background
-  const startBackgroundTracking = async () => {
-    // Pastikan sudah granted foreground
-    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-    if (fgStatus !== 'granted') {
-      Alert.alert('Izin lokasi diperlukan untuk tracking.');
-      return;
-    }
-    // Baru request background
-    const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-    if (bgStatus !== 'granted') {
-      Alert.alert('Izin lokasi latar belakang diperlukan. Aktifkan manual di pengaturan jika tidak muncul.');
-      return;
-    }
-    await Location.startLocationUpdatesAsync('background-location-task', {
-      accuracy: Location.Accuracy.High,
-      timeInterval: 2 * 60 * 1000,
-      distanceInterval: 10,
-      showsBackgroundLocationIndicator: true,
-      foregroundService: {
-        notificationTitle: 'Tracking lokasi aktif',
-        notificationBody: 'Aplikasi sedang melacak lokasimu.'
-      },
-    });
-    Alert.alert('Tracking aktif', 'Aplikasi sedang melacak lokasimu di background.');
-  };
-
-  // Berhenti tracking
-  const stopBackgroundTracking = async () => {
-    await Location.stopLocationUpdatesAsync('background-location-task');
-  };
 
   // Handle Start
   const handleStart = async () => {
@@ -117,20 +86,41 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
         setLoading(false);
         return;
       }
+      // Pastikan EmployeeName tidak kosong
+      let employeeName = authState?.userInfo?.UserName || authState?.userInfo?.username;
+      if (!employeeName) {
+        const userInfoStr = await AsyncStorage.getItem('userInfo');
+        if (userInfoStr) {
+          const userInfo = JSON.parse(userInfoStr);
+          employeeName = userInfo.UserName || userInfo.username;
+        }
+      }
+      if (!employeeName) {
+        Alert.alert('User tidak ditemukan, silakan login ulang.');
+        setLoading(false);
+        return;
+      }
       const checkInData = {
+        EmployeeName: employeeName,
         type: 'start',
         tipechekin: 'start',
         timestamp: getLocalISOString(),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       };
+      console.log('[StartEndButton] handleStart, akan panggil addCheckin:', checkInData);
       await addCheckin(checkInData);
+      // Simpan info check-in start ke AsyncStorage untuk filter tracking pertama
+      await AsyncStorage.setItem('lastCheckinStartTimestamp', checkInData.timestamp);
+      await AsyncStorage.setItem('lastCheckinStartLoc', JSON.stringify({ latitude: checkInData.latitude, longitude: checkInData.longitude }));
       await startBackgroundTracking();
       await AsyncStorage.setItem('isTracking', 'true'); // pastikan update status
       setStarted(true);
       if (onPress) onPress(true);
+      console.log('[StartEndButton] handleStart selesai, API sudah dipanggil');
     } catch (err) {
       Alert.alert('Terjadi error saat check-in.', err?.message || '');
+      console.log('[StartEndButton] handleStart error:', err);
     }
     setLoading(false);
   };
@@ -165,7 +155,7 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
         longitude: loc.coords.longitude,
       };
       await addCheckin(checkOutData);
-      await stopBackgroundTracking();
+      await stopBackgroundTracking(); // Panggil global
       await AsyncStorage.setItem('isTracking', 'false'); // pastikan update status
       setStarted(false);
       if (onPress) onPress(false);

@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Button, Alert, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const LOCATION_TASK_NAME = 'background-location-task';
 
 // Task Manager untuk menangani lokasi latar belakang
 // Fungsi hitung jarak haversine (meter)
@@ -19,41 +16,6 @@ function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
-
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error('Error in background location task:', error);
-    return;
-  }
-  
-  if (data) {
-    const { locations } = data;
-    const location = locations[0];
-    const locationData = {
-      timestamp: new Date().toISOString(),
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-    };
-    const existingLogs = await AsyncStorage.getItem('locationLogs');
-    const parsedLogs = JSON.parse(existingLogs || '[]');
-    // Cek jarak ke lokasi terakhir
-    if (parsedLogs.length > 0) {
-      const last = parsedLogs[parsedLogs.length - 1];
-      const dist = getDistanceFromLatLonInMeters(
-        last.latitude,
-        last.longitude,
-        locationData.latitude,
-        locationData.longitude
-      );
-      if (dist < 200) {
-        // Tidak usah simpan jika < 200 meter
-        return;
-      }
-    }
-    parsedLogs.push(locationData);
-    await AsyncStorage.setItem('locationLogs', JSON.stringify(parsedLogs));
-  }
-});
 
 const CheckInScreen = ({ navigation }) => {
   // Hapus isTracking dari state dan seluruh pemanggilan setIsTracking

@@ -28,23 +28,16 @@ const MapTrackingScreen = () => {
   const [markers, setMarkers] = useState([]);
   const appState = useRef(AppState.currentState);
 
-  const getLocalWIBDateString = () => {
-    const now = new Date();
+  // Helper: format date ke string lokal WIB (GMT+7), bulat detik
+  const getLocalWIBDateString = (date = new Date()) => {
     // WIB = UTC+7
     const wibOffset = 7 * 60; // in minutes
-    const local = new Date(now.getTime() + (wibOffset - now.getTimezoneOffset()) * 60000);
-    // Format: YYYY-MM-DD HH:mm:ss
+    const local = new Date(date.getTime() + (wibOffset - date.getTimezoneOffset()) * 60000);
+    // Bulatkan ke detik (hilangkan milidetik)
+    local.setMilliseconds(0);
     const pad = n => n.toString().padStart(2, '0');
     return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
   };
-
-  // Helper: format date ke string lokal WIB (GMT+7)
-  // function getLocalWIBDateTimeString(date = new Date()) {
-  //   // WIB = UTC+7
-  //   const wib = new Date(date.getTime() + 7 * 60 * 60 * 1000);
-  //   const pad = n => n.toString().padStart(2, '0');
-  //   return `${wib.getFullYear()}-${pad(wib.getMonth() + 1)}-${pad(wib.getDate())} ${pad(wib.getHours())}:${pad(wib.getMinutes())}:${pad(wib.getSeconds())}`;
-  // }
 
   const logLocation = async () => {
     try {
@@ -52,10 +45,13 @@ const MapTrackingScreen = () => {
       if (status !== 'granted') return;
 
       const location = await Location.getCurrentPositionAsync({});
+      // Timestamp bulat detik
+      const now = new Date();
+      now.setMilliseconds(0);
       const newLog = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-        timestamp: getLocalWIBDateString(), // gunakan format lokal WIB
+        timestamp: getLocalWIBDateString(now), // sudah bulat detik
       };
 
       const existing = JSON.parse(await AsyncStorage.getItem('locationLogs') || '[]');
@@ -63,27 +59,39 @@ const MapTrackingScreen = () => {
       await AsyncStorage.setItem('locationLogs', JSON.stringify(updated));
       setTrackingRoute(updated);
 
-      // Cek duplikasi sebelum insert ke DB
+      // Cek duplikasi dan interval sebelum insert ke DB
       if (profile?.UserName) {
-        // Cek apakah sudah pernah insert titik tracking dengan timestamp dan koordinat yang sama
         const lastSentKey = `lastTrackingSent_${profile.UserName}`;
         const lastSentStr = await AsyncStorage.getItem(lastSentKey);
         let isDuplicate = false;
+        let isTooSoon = false;
         if (lastSentStr) {
           try {
             const lastSent = JSON.parse(lastSentStr);
+            // Cek timestamp dan koordinat
             isDuplicate = lastSent && lastSent.timestamp === newLog.timestamp && lastSent.latitude === newLog.latitude && lastSent.longitude === newLog.longitude;
+            // Cek interval minimal 2 menit
+            const lastTime = new Date(lastSent.timestamp);
+            const currTime = new Date(newLog.timestamp);
+            const diffMs = currTime - lastTime;
+            isTooSoon = diffMs < 2 * 60 * 1000; // kurang dari 2 menit
+            // Cek koordinat sama persis
+            if (lastSent.latitude === newLog.latitude && lastSent.longitude === newLog.longitude && isTooSoon) {
+              isDuplicate = true;
+            }
           } catch {}
         }
-        if (!isDuplicate) {
+        if (!isDuplicate && !isTooSoon) {
           await saveCheckinToServer({
             EmployeeName: profile.UserName,
             Lattitude: newLog.latitude,
             Longtitude: newLog.longitude,
-            CreatedDate: newLog.timestamp, // sudah format lokal WIB
+            CreatedDate: newLog.timestamp, // sudah format lokal WIB, bulat detik
             tipechekin: 'tracking',
           });
           await AsyncStorage.setItem(lastSentKey, JSON.stringify(newLog));
+        } else {
+          console.log('[TRACKING] Skip insert: duplikat atau <2 menit dari titik sebelumnya');
         }
       }
     } catch (err) {
@@ -158,6 +166,13 @@ const MapTrackingScreen = () => {
     };
     fetchMarkers();
   }, [profile.UserName]);
+
+  // Update optimizedRoute setiap markers dari server berubah
+  useEffect(() => {
+    if (sortedServerMarkers.length > 1) {
+      buildOptimizedRoute(sortedServerMarkers.map(m => ({ latitude: m.latitude, longitude: m.longitude })));
+    }
+  }, [markers]);
 
   const deduplicatePoints = (data) => {
     return data.reduce((acc, curr) => {
@@ -267,7 +282,7 @@ const MapTrackingScreen = () => {
 
   // Urutkan marker dari server berdasarkan CheckinDate (createdDate)
   const sortedServerMarkers = markers
-    .filter(m => m.createdDate)
+    .filter(m => m.createdDate && typeof m.latitude === 'number' && typeof m.longitude === 'number' && !isNaN(m.latitude) && !isNaN(m.longitude))
     .sort((a, b) => new Date(a.createdDate) - new Date(b.createdDate))
     .map((m, idx) => ({ ...m, order: idx + 1 }));
 
@@ -355,14 +370,10 @@ const MapTrackingScreen = () => {
               />
             );
           })}
-          {optimizedRoute.length > 1 && optimizedRoute.every(loc =>
-            typeof loc.latitude === 'number' &&
-            typeof loc.longitude === 'number' &&
-            !isNaN(loc.latitude) &&
-            !isNaN(loc.longitude)
-          ) && (
+          {/* Polyline snap to road/directions */}
+          {optimizedRoute.length > 1 ? (
             <Polyline coordinates={optimizedRoute} strokeColor="#007AFF" strokeWidth={3} />
-          )}
+          ) : null}
         </MapView>
       </SafeMapView>
 

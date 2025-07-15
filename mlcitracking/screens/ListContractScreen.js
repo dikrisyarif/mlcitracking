@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialIcons'; 
-import { fetchListDtl, updateCheckin, saveCheckinToServer } from '../api/listApi';
+import { fetchListDtl, updateCheckin, saveCheckinToServer, isStartedApi } from '../api/listApi';
 import { useMap } from '../context/MapContext';
 import * as Location from 'expo-location'; 
 import GlobalLoading from '../components/GlobalLoading';
@@ -259,37 +259,33 @@ const handleCheckin = async (item, newComment) => {
   }
 };
 
+  // Fetch backend start/stop status
+  useEffect(() => {
+    const fetchStartedStatus = async () => {
+      try {
+        let employeeName = profile?.UserName || profile?.username;
+        if (!employeeName) return;
+        const now = new Date();
+        const createdDate = now.toISOString();
+        const res = await isStartedApi({ EmployeeName: employeeName, CreatedDate: createdDate });
+        // Log for debug
+        console.log('[ListContractScreen] isStartedApi result:', res);
+        if (res?.Data?.NextAction === 'Start') {
+          setIsStarted(false);
+        } else if (res?.Data?.NextAction === 'Stop') {
+          setIsStarted(true);
+        }
+      } catch (e) {
+        console.log('[ListContractScreen] isStartedApi error:', e);
+      }
+    };
+    fetchStartedStatus();
+  }, [profile?.UserName, navigation]);
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       fetchContracts();
     });
-    return unsubscribe;
-  }, [navigation]);
-
-  useEffect(() => {
-    // Sinkronisasi status tracking dari AsyncStorage setiap kali screen difokuskan
-    const checkTrackingStatus = async () => {
-      await loadCheckinsFromStorage(); // update context MapContext
-      const storageData = await AsyncStorage.getItem('CheckinLocations');
-      let parsed = [];
-      try {
-        parsed = JSON.parse(storageData) || [];
-        // console.log('Reload checkinLocations from storage', JSON.stringify(parsed, null, 2));
-      } catch {
-        // console.log('Reload checkinLocations from storage', storageData);
-      }
-      // Cek status tracking dari checkinLocations
-      const reversed = [...parsed].reverse();
-      const lastStartIdx = reversed.findIndex(c => c.tipechekin === 'start');
-      if (lastStartIdx === -1) {
-        setIsStarted(false);
-        return;
-      }
-      // Cari apakah ADA 'stop' SETELAH 'start' terakhir
-      const stopAfterStart = reversed.slice(0, lastStartIdx).findIndex(c => c.tipechekin === 'stop');
-      setIsStarted(stopAfterStart === -1 && lastStartIdx !== -1);
-    };
-    const unsubscribe = navigation.addListener('focus', checkTrackingStatus);
     return unsubscribe;
   }, [navigation]);
 
