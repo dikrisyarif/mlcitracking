@@ -117,6 +117,18 @@ const LoginScreen = ({ navigation }) => {
           DivisionName: user.DivisionName,
         });
         // navigation.navigate('App', { screen: 'Home' }); // Tidak perlu, navigasi otomatis
+        // Start global background tracking after successful login
+        try {
+          // Import di atas agar tidak error di Metro bundler
+          import('../backgroundTrackingManager').then(({ startBackgroundTracking }) => {
+            startBackgroundTracking();
+            console.log('[LoginScreen] Background tracking started after login');
+          }).catch((err) => {
+            console.log('[LoginScreen] Error starting background tracking:', err);
+          });
+        } catch (err) {
+          console.log('[LoginScreen] Error starting background tracking:', err);
+        }
       } else {
         setAlertMessage('Data user tidak ditemukan.');
         setAlertVisible(true);

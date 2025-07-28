@@ -133,14 +133,16 @@ const MapTrackingScreen = () => {
     loadTrackingData();
   }, [loadTrackingData]);
 
-  // Run every 2 minutes
+  // Best practice: Remove tracking interval from screen, use global manager for background tracking
+  // Tracking should be started/stopped globally (e.g. via StartEndButton/global context)
+  // Here, only load tracking data for visualization
+  // If you want to refresh data periodically, use a short interval (e.g. 10s) ONLY for UI refresh, not for logging location
   useEffect(() => {
     const interval = setInterval(() => {
-      logLocation();
       loadTrackingData();
-    }, 2 * 60 * 1000);
+    }, 10000); // 10s UI refresh
     return () => clearInterval(interval);
-  }, []);
+  }, [loadTrackingData]);
 
   useEffect(() => {
     if (checkinLocations.length > 0) {

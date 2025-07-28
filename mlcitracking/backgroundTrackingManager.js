@@ -11,15 +11,21 @@ export async function startBackgroundTracking() {
     return;
   }
   // Request permission jika belum
-  const { status } = await Location.requestBackgroundPermissionsAsync();
+  const { status, canAskAgain } = await Location.requestBackgroundPermissionsAsync();
   if (status !== 'granted') {
+    // Tampilkan alert ke user jika permission belum diberikan
+    if (canAskAgain) {
+      alert('Aplikasi membutuhkan izin lokasi background. Silakan aktifkan "Allow all the time" di pengaturan aplikasi Android Anda.');
+    } else {
+      alert('Izin lokasi background ditolak permanen. Silakan aktifkan secara manual di pengaturan aplikasi Android.');
+    }
     console.warn('[BG Tracking] Background location permission not granted');
     return;
   }
   await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
     accuracy: Location.Accuracy.High,
     timeInterval: 120000, // 2 menit
-    distanceInterval: 200, // 200 meter
+    distanceInterval: 20, // 200 meter
     showsBackgroundLocationIndicator: true,
     foregroundService: {
       notificationTitle: 'MLCI Tracking',

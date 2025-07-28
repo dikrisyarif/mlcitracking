@@ -58,13 +58,16 @@ export const saveCheckinToServer = async ({
   CreatedDate,
   Address = '',
   tipechekin = 'tracking',
+  localTimestamp, // tambahkan argumen opsional
 }) => {
   const endpointPath = '/common/v1/mobile/save';
+  // Gunakan localTimestamp jika ada, jika tidak pakai CreatedDate
+  const finalCreatedDate = localTimestamp || CreatedDate;
   let body = {
     EmployeeName,
     Lattitude,
     Longtitude,
-    CreatedDate,
+    CreatedDate: finalCreatedDate,
     Address: '', // default kosong
     CheckIn: false,
     Start: false,

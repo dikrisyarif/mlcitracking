@@ -113,7 +113,8 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
       // Simpan info check-in start ke AsyncStorage untuk filter tracking pertama
       await AsyncStorage.setItem('lastCheckinStartTimestamp', checkInData.timestamp);
       await AsyncStorage.setItem('lastCheckinStartLoc', JSON.stringify({ latitude: checkInData.latitude, longitude: checkInData.longitude }));
-      await startBackgroundTracking();
+      // Pass profile info to global tracking manager for correct logging
+      await startBackgroundTracking(authState?.userInfo);
       await AsyncStorage.setItem('isTracking', 'true'); // pastikan update status
       setStarted(true);
       if (onPress) onPress(true);

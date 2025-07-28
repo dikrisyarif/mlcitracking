@@ -66,6 +66,13 @@ export const MapProvider = ({ children }) => {
       const updated = [...checkinLocations, locWithLocalTime];
       setCheckinLocations(updated);
       await AsyncStorage.setItem('CheckinLocations', JSON.stringify(updated));
+
+      // Simpan info check-in start ke AsyncStorage untuk filter tracking background
+      if (locWithLocalTime.tipechekin === 'start') {
+        await AsyncStorage.setItem('lastCheckinStartTimestamp', locWithLocalTime.timestamp);
+        await AsyncStorage.setItem('lastCheckinStartLoc', JSON.stringify({ latitude: locWithLocalTime.latitude, longitude: locWithLocalTime.longitude }));
+      }
+
       // Kirim ke server
       const userName = state?.userInfo?.UserName || state?.userInfo?.username || '';
       let address = '';
@@ -73,7 +80,7 @@ export const MapProvider = ({ children }) => {
         // Reverse geocode jika ada koordinat
         if (locWithLocalTime.latitude && locWithLocalTime.longitude) {
           try {
-            let geocode = await Location.reverseGeocodeAsync({
+            const geocode = await Location.reverseGeocodeAsync({
               latitude: locWithLocalTime.latitude,
               longitude: locWithLocalTime.longitude,
             });
@@ -83,7 +90,9 @@ export const MapProvider = ({ children }) => {
               const city = geocode[0].subregion || '';
               address = [street, city].filter(Boolean).join(', ');
             }
-          } catch {}
+          } catch (err) {
+            console.error('[MapContext] Reverse geocode error:', err);
+          }
         }
       }
       // Hanya trigger saveCheckinToServer ke server jika bukan kontrak
@@ -105,10 +114,6 @@ export const MapProvider = ({ children }) => {
           tipechekin: locWithLocalTime.tipechekin,
         });
         console.log(`[MapContext] Hasil panggil API saveCheckinToServer tipe: ${locWithLocalTime.tipechekin}`, apiResult);
-      }
-      // Simpan timestamp check-in terakhir jika tipechekin 'start'
-      if (locWithLocalTime.tipechekin === 'start') {
-        await AsyncStorage.setItem('lastCheckinStart', String(new Date(locWithLocalTime.timestamp).getTime()));
       }
     } catch (e) {
       console.error('[MapContext] Error saving checkin:', e);
