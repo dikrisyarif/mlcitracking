@@ -76,9 +76,11 @@ export const saveCheckinToServer = async ({
   };
   if (tipechekin === 'start') {
     body.Start = true;
+    body.Address = Address;
     // CheckIn dan Stop tetap false
   } else if (tipechekin === 'stop') {
     body.Stop = true;
+    body.Address = Address;
     // CheckIn dan Start tetap false
   } else if (tipechekin === 'kontrak') {
     body.CheckIn = true;
@@ -86,7 +88,7 @@ export const saveCheckinToServer = async ({
     // Start dan Stop tetap false
   }
   // tracking: semua false
-  // console.log('[listApi] Payload ke API saveCheckinToServer:', { endpointPath, body });
+  console.log('[listApi] Payload ke API saveCheckinToServer:', { endpointPath, body });
   const result = await callMitsuiApi({ endpointPath, method: 'POST', body });
   // console.log('[listApi] Response dari API saveCheckinToServer:', result);
   return result;

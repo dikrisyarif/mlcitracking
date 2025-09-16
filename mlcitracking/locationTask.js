@@ -168,8 +168,8 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       } else {
         await AsyncStorage.setItem('locationLogs', JSON.stringify(newLogs));
       }
-      // Set waktu next insert = currTime + 2 menit
-      const nextAllowed = currTime + 2 * 60 * 1000;
+      // Set waktu next insert = currTime + 15 menit
+      const nextAllowed = currTime + 15 * 60 * 1000;
       await AsyncStorage.setItem('nextTrackingInsert', String(nextAllowed));
       console.log(`[BG Tracking] Batch upload selesai. Sukses: ${sentCount}, Gagal: ${failedCount}. Next insert at (WIB):`, getLocalWIBLogString(new Date(nextAllowed)));
     } catch (e) {

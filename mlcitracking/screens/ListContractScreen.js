@@ -205,15 +205,11 @@ const handleCheckin = async (item, newComment) => {
     // 1. Dapatkan address hasil reverse geocode (jalan, kota)
     let address = '';
     try {
-      let geocode = await Location.reverseGeocodeAsync({
+      // Gunakan getBestAddress dari MapContext untuk caching
+      address = await getBestAddress({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
-      if (geocode && geocode[0]) {
-        const street = geocode[0].street || '';
-        const city = geocode[0].subregion || '';
-        address = [street, city].filter(Boolean).join(', ');
-      }
     } catch {}
 
     // 1. Simpan ke server (saveCheckinToServer)

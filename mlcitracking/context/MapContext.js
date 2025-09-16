@@ -48,6 +48,36 @@ export const MapProvider = ({ children }) => {
     return now.toISOString().slice(0, 19); // yyyy-MM-ddTHH:mm:ss
   }
 
+  // Helper: Ambil address dari reverse geocode, prioritas street+number, fallback ke city/district, dengan caching
+  async function getBestAddress({ latitude, longitude, Address }) {
+    if (Address && Address.trim()) return Address;
+    if (!latitude || !longitude) return '';
+    const cacheKey = `address_${latitude}_${longitude}`;
+    try {
+      // Cek cache dulu
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) return cached;
+      // Jika belum ada di cache, panggil Google API
+      const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+      let bestAddress = '';
+      if (geocode && geocode[0]) {
+        const g = geocode[0];
+        let street = g.street || '';
+        let number = g.name || g.streetNumber || '';
+        let city = g.city || g.subregion || g.district || g.region || '';
+        if (street && number) bestAddress = `${street} No. ${number}`;
+        else if (street) bestAddress = street;
+        else if (city) bestAddress = city;
+      }
+      // Simpan ke cache
+      if (bestAddress) await AsyncStorage.setItem(cacheKey, bestAddress);
+      return bestAddress;
+    } catch (err) {
+      console.error('[MapContext] Reverse geocode error:', err);
+    }
+    return '';
+  }
+
   const addCheckin = async (location) => {
     try {
       // Pastikan timestamp lokal
@@ -73,48 +103,26 @@ export const MapProvider = ({ children }) => {
         await AsyncStorage.setItem('lastCheckinStartLoc', JSON.stringify({ latitude: locWithLocalTime.latitude, longitude: locWithLocalTime.longitude }));
       }
 
-      // Kirim ke server
+      // Kirim ke server (start, stop, kontrak semuanya pakai address terbaik)
       const userName = state?.userInfo?.UserName || state?.userInfo?.username || '';
-      let address = '';
-      if (locWithLocalTime.tipechekin === 'kontrak') {
-        // Reverse geocode jika ada koordinat
-        if (locWithLocalTime.latitude && locWithLocalTime.longitude) {
-          try {
-            const geocode = await Location.reverseGeocodeAsync({
-              latitude: locWithLocalTime.latitude,
-              longitude: locWithLocalTime.longitude,
-            });
-            if (geocode && geocode[0]) {
-              // Hanya ambil street dan subregion (kota)
-              const street = geocode[0].street || '';
-              const city = geocode[0].subregion || '';
-              address = [street, city].filter(Boolean).join(', ');
-            }
-          } catch (err) {
-            console.error('[MapContext] Reverse geocode error:', err);
-          }
-        }
-      }
-      // Hanya trigger saveCheckinToServer ke server jika bukan kontrak
-      if (locWithLocalTime.tipechekin === 'start' || locWithLocalTime.tipechekin === 'stop') {
-        console.log(`[MapContext] Akan kirim ke API saveCheckinToServer tipe: ${locWithLocalTime.tipechekin}`, {
-          EmployeeName: userName,
-          Lattitude: locWithLocalTime.latitude,
-          Longtitude: locWithLocalTime.longitude,
-          CreatedDate: locWithLocalTime.timestamp,
-          Address: address,
-          tipechekin: locWithLocalTime.tipechekin,
-        });
-        const apiResult = await saveCheckinToServer({
-          EmployeeName: userName,
-          Lattitude: locWithLocalTime.latitude,
-          Longtitude: locWithLocalTime.longitude,
-          CreatedDate: locWithLocalTime.timestamp,
-          Address: address,
-          tipechekin: locWithLocalTime.tipechekin,
-        });
-        console.log(`[MapContext] Hasil panggil API saveCheckinToServer tipe: ${locWithLocalTime.tipechekin}`, apiResult);
-      }
+      const address = await getBestAddress(locWithLocalTime);
+      console.log(`[MapContext] Akan kirim ke API saveCheckinToServer tipe: ${locWithLocalTime.tipechekin}`, {
+        EmployeeName: userName,
+        Lattitude: locWithLocalTime.latitude,
+        Longtitude: locWithLocalTime.longitude,
+        CreatedDate: locWithLocalTime.timestamp,
+        Address: address,
+        tipechekin: locWithLocalTime.tipechekin,
+      });
+      const apiResult = await saveCheckinToServer({
+        EmployeeName: userName,
+        Lattitude: locWithLocalTime.latitude,
+        Longtitude: locWithLocalTime.longitude,
+        CreatedDate: locWithLocalTime.timestamp,
+        Address: address,
+        tipechekin: locWithLocalTime.tipechekin,
+      });
+      console.log(`[MapContext] Hasil panggil API saveCheckinToServer tipe: ${locWithLocalTime.tipechekin}`, apiResult);
     } catch (e) {
       console.error('[MapContext] Error saving checkin:', e);
     }

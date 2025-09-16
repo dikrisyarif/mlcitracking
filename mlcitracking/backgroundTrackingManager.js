@@ -24,8 +24,8 @@ export async function startBackgroundTracking() {
   }
   await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
     accuracy: Location.Accuracy.High,
-    timeInterval: 120000, // 2 menit
-    distanceInterval: 20, // 200 meter
+    timeInterval: 15 * 60000, // 15 menit
+    distanceInterval: 200, // 200 meter
     showsBackgroundLocationIndicator: true,
     foregroundService: {
       notificationTitle: 'MLCI Tracking',

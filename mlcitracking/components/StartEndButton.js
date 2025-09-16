@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
-import { useMap } from '../context/MapContext';
-import * as Location from 'expo-location';
-import CustomAlert from './CustomAlert';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isStartedApi } from '../api/listApi';
-import { useAuth } from '../context/AuthContext';
-import { startBackgroundTracking, stopBackgroundTracking } from '../backgroundTrackingManager';
+import React, { useState, useEffect } from "react";
+import { TouchableOpacity, Text, StyleSheet, Alert } from "react-native";
+import { useTheme } from "../context/ThemeContext";
+import { useMap } from "../context/MapContext";
+import * as Location from "expo-location";
+import CustomAlert from "./CustomAlert";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isStartedApi } from "../api/listApi";
+import { useAuth } from "../context/AuthContext";
+import {
+  startBackgroundTracking,
+  stopBackgroundTracking,
+} from "../backgroundTrackingManager";
 
-const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocations }) => {
+const StartEndButton = ({
+  isStarted,
+  onPress,
+  checkinLocations: propCheckinLocations,
+}) => {
   const { colors } = useTheme();
   const { addCheckin, checkinLocations: contextCheckinLocations } = useMap();
   const checkinLocations = propCheckinLocations || contextCheckinLocations;
@@ -22,10 +29,11 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
   useEffect(() => {
     const fetchStartedStatus = async () => {
       try {
-        let employeeName = authState?.userInfo?.UserName || authState?.userInfo?.username;
+        let employeeName =
+          authState?.userInfo?.UserName || authState?.userInfo?.username;
         if (!employeeName) {
           // fallback ke SecureStore jika context belum siap
-          const userInfoStr = await AsyncStorage.getItem('userInfo');
+          const userInfoStr = await AsyncStorage.getItem("userInfo");
           if (userInfoStr) {
             const userInfo = JSON.parse(userInfoStr);
             employeeName = userInfo.UserName || userInfo.username;
@@ -34,17 +42,20 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
         if (!employeeName) return;
         const now = new Date();
         const createdDate = now.toISOString();
-        const res = await isStartedApi({ EmployeeName: employeeName, CreatedDate: createdDate });
+        const res = await isStartedApi({
+          EmployeeName: employeeName,
+          CreatedDate: createdDate,
+        });
         // Tambahkan log debug
-        console.log('[StartEndButton] isStartedApi result:', res);
-        if (res?.Data?.NextAction === 'Start') {
+        console.log("[StartEndButton] isStartedApi result:", res);
+        if (res?.Data?.NextAction === "Start") {
           setStarted(false); // NextAction Start -> tombol Start (belum mulai)
-        } else if (res?.Data?.NextAction === 'Stop') {
+        } else if (res?.Data?.NextAction === "Stop") {
           setStarted(true); // NextAction Stop -> tombol Stop (sudah mulai)
         }
       } catch (e) {
         // fallback ke local jika error
-        console.log('[StartEndButton] isStartedApi error:', e);
+        console.log("[StartEndButton] isStartedApi error:", e);
       }
     };
     fetchStartedStatus();
@@ -75,53 +86,76 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
     setLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Izin lokasi diperlukan untuk check-in.');
+      if (status !== "granted") {
+        Alert.alert("Izin lokasi diperlukan untuk check-in.");
         setLoading(false);
         return;
       }
       const loc = await Location.getCurrentPositionAsync({});
       if (!loc?.coords) {
-        Alert.alert('Data lokasi tidak valid.');
+        Alert.alert("Data lokasi tidak valid.");
         setLoading(false);
         return;
       }
       // Pastikan EmployeeName tidak kosong
-      let employeeName = authState?.userInfo?.UserName || authState?.userInfo?.username;
+      let employeeName =
+        authState?.userInfo?.UserName || authState?.userInfo?.username;
       if (!employeeName) {
-        const userInfoStr = await AsyncStorage.getItem('userInfo');
+        const userInfoStr = await AsyncStorage.getItem("userInfo");
         if (userInfoStr) {
           const userInfo = JSON.parse(userInfoStr);
           employeeName = userInfo.UserName || userInfo.username;
         }
       }
       if (!employeeName) {
-        Alert.alert('User tidak ditemukan, silakan login ulang.');
+        Alert.alert("User tidak ditemukan, silakan login ulang.");
         setLoading(false);
         return;
       }
+      let address = "";
+      try {
+        // Gunakan getBestAddress dari MapContext untuk caching
+        address = await getBestAddress({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      } catch {}
+
       const checkInData = {
         EmployeeName: employeeName,
-        type: 'start',
-        tipechekin: 'start',
+        type: "start",
+        tipechekin: "start",
         timestamp: getLocalISOString(),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
+        Address: address,
       };
-      console.log('[StartEndButton] handleStart, akan panggil addCheckin:', checkInData);
+      console.log(
+        "[StartEndButton] handleStart, akan panggil addCheckin:",
+        checkInData
+      );
       await addCheckin(checkInData);
       // Simpan info check-in start ke AsyncStorage untuk filter tracking pertama
-      await AsyncStorage.setItem('lastCheckinStartTimestamp', checkInData.timestamp);
-      await AsyncStorage.setItem('lastCheckinStartLoc', JSON.stringify({ latitude: checkInData.latitude, longitude: checkInData.longitude }));
+      await AsyncStorage.setItem(
+        "lastCheckinStartTimestamp",
+        checkInData.timestamp
+      );
+      await AsyncStorage.setItem(
+        "lastCheckinStartLoc",
+        JSON.stringify({
+          latitude: checkInData.latitude,
+          longitude: checkInData.longitude,
+        })
+      );
       // Pass profile info to global tracking manager for correct logging
       await startBackgroundTracking(authState?.userInfo);
-      await AsyncStorage.setItem('isTracking', 'true'); // pastikan update status
+      await AsyncStorage.setItem("isTracking", "true"); // pastikan update status
       setStarted(true);
       if (onPress) onPress(true);
-      console.log('[StartEndButton] handleStart selesai, API sudah dipanggil');
+      console.log("[StartEndButton] handleStart selesai, API sudah dipanggil");
     } catch (err) {
-      Alert.alert('Terjadi error saat check-in.', err?.message || '');
-      console.log('[StartEndButton] handleStart error:', err);
+      Alert.alert("Terjadi error saat check-in.", err?.message || "");
+      console.log("[StartEndButton] handleStart error:", err);
     }
     setLoading(false);
   };
@@ -137,31 +171,40 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
     setLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Izin lokasi diperlukan untuk check-out.');
+      if (status !== "granted") {
+        Alert.alert("Izin lokasi diperlukan untuk check-out.");
         setLoading(false);
         return;
       }
       const loc = await Location.getCurrentPositionAsync({});
       if (!loc?.coords) {
-        Alert.alert('Data lokasi tidak valid.');
+        Alert.alert("Data lokasi tidak valid.");
         setLoading(false);
         return;
       }
+      let address = "";
+      try {
+        // Gunakan getBestAddress dari MapContext untuk caching
+        address = await getBestAddress({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+      } catch {}
       const checkOutData = {
-        type: 'stop',
-        tipechekin: 'stop',
+        type: "stop",
+        tipechekin: "stop",
         timestamp: getLocalISOString(),
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
+        Address: address,
       };
       await addCheckin(checkOutData);
       await stopBackgroundTracking(); // Panggil global
-      await AsyncStorage.setItem('isTracking', 'false'); // pastikan update status
+      await AsyncStorage.setItem("isTracking", "false"); // pastikan update status
       setStarted(false);
       if (onPress) onPress(false);
     } catch (err) {
-      Alert.alert('Terjadi error saat check-out.', err?.message || '');
+      Alert.alert("Terjadi error saat check-out.", err?.message || "");
     }
     setLoading(false);
   };
@@ -172,14 +215,17 @@ const StartEndButton = ({ isStarted, onPress, checkinLocations: propCheckinLocat
         style={[
           styles.button,
           started
-            ? { backgroundColor: '#d32f2f', borderColor: '#d32f2f' }
-            : { backgroundColor: colors.button, borderColor: colors.buttonborder },
+            ? { backgroundColor: "#d32f2f", borderColor: "#d32f2f" }
+            : {
+                backgroundColor: colors.button,
+                borderColor: colors.buttonborder,
+              },
           { borderWidth: 1 },
         ]}
         onPress={started ? handleStop : handleStart}
         disabled={loading}
       >
-        <Text style={styles.buttonText}>{started ? 'Stop' : 'Start'}</Text>
+        <Text style={styles.buttonText}>{started ? "Stop" : "Start"}</Text>
       </TouchableOpacity>
       <CustomAlert
         visible={showAlert}
@@ -196,12 +242,12 @@ const styles = StyleSheet.create({
   button: {
     padding: 5,
     borderRadius: 5,
-    alignItems: 'center',
+    alignItems: "center",
     margin: 5,
     width: 200,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
   },
 });

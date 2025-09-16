@@ -70,11 +70,11 @@ const MapTrackingScreen = () => {
             const lastSent = JSON.parse(lastSentStr);
             // Cek timestamp dan koordinat
             isDuplicate = lastSent && lastSent.timestamp === newLog.timestamp && lastSent.latitude === newLog.latitude && lastSent.longitude === newLog.longitude;
-            // Cek interval minimal 2 menit
+            // Cek interval minimal 1 menit
             const lastTime = new Date(lastSent.timestamp);
             const currTime = new Date(newLog.timestamp);
             const diffMs = currTime - lastTime;
-            isTooSoon = diffMs < 2 * 60 * 1000; // kurang dari 2 menit
+            isTooSoon = diffMs < 1 * 60 * 1000; // kurang dari 1 menit
             // Cek koordinat sama persis
             if (lastSent.latitude === newLog.latitude && lastSent.longitude === newLog.longitude && isTooSoon) {
               isDuplicate = true;
