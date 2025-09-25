@@ -355,6 +355,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     width: '100%',
     paddingTop: hp('5%'), // Tambahkan padding atas untuk memberi ruang pada header
+    paddingBottom: hp('5%'),
   },
   buttonContainer: {
     flexDirection: 'row',
